@@ -108,6 +108,15 @@
               >
                 {{ i18n.t("recipe.parser.add-text-as-alias-for-item", { text: currentMissingFood, item: currentIng.ingredient.food.name }) }}
               </BaseButton>
+              <BaseButton
+                v-if="missingCount > 0"
+                color="info"
+                size="small"
+                :loading="state.loading.bulk"
+                @click="createAllMissing"
+              >
+                {{ i18n.t("recipe.parser.create-all-missing", { count: missingCount }) }}
+              </BaseButton>
             </v-card-actions>
           </v-card-text>
         </v-card>
@@ -259,12 +268,21 @@ const currentMissingFood = ref("");
 const currentIngHasError = computed(() => currentMissingUnit.value || currentMissingFood.value);
 const currentIngShouldDelete = ref(false);
 
+const missingCount = computed(() => {
+  if (state.allReviewed) return 0;
+  return parsedIngs.value.filter(ing =>
+    (ing.ingredient.food && !ing.ingredient.food.id)
+    || (ing.ingredient.unit && !ing.ingredient.unit.id),
+  ).length;
+});
+
 const state = reactive({
   currentParsedIndex: -1,
   allReviewed: false,
   loading: {
     parser: false,
     save: false,
+    bulk: false,
   },
 });
 
@@ -462,6 +480,85 @@ async function createMissingFood() {
   currentIng.value!.ingredient.food = newFood;
   createdFoods.set(newFood.name.toLowerCase(), newFood);
   currentMissingFood.value = "";
+}
+
+async function createAllMissing() {
+  if (state.loading.bulk || missingCount.value === 0) return;
+  state.loading.bulk = true;
+
+  // Collect unique missing food/unit names. Recipes commonly reference the same
+  // food across sections (e.g. "garlic paste" in both marinade and stir-fry).
+  // Firing parallel POSTs for the same name races on the unique-name constraint;
+  // one wins and the other 400s, leaving an id-less food on the ingredient that
+  // then fails the recipe save with "Expected 'id' to be provided for food".
+  // Dedupe by lowercase name so "Salt" and "salt" merge to a single create.
+  const missingFoodNames = new Map<string, string>();
+  const missingUnitNames = new Map<string, string>();
+  for (const ing of parsedIngs.value) {
+    const food = ing.ingredient.food;
+    if (food && !food.id && food.name) {
+      const key = food.name.toLowerCase();
+      if (!createdFoods.has(key) && !missingFoodNames.has(key)) {
+        missingFoodNames.set(key, food.name);
+      }
+    }
+    const unit = ing.ingredient.unit;
+    if (unit && !unit.id && unit.name) {
+      const key = unit.name.toLowerCase();
+      if (!createdUnits.has(key) && !missingUnitNames.has(key)) {
+        missingUnitNames.set(key, unit.name);
+      }
+    }
+  }
+
+  await Promise.all([
+    ...Array.from(missingFoodNames.values()).map(async (name) => {
+      foodData.reset();
+      foodData.data.name = name;
+      let resolved = null;
+      try {
+        resolved = await foodStore.actions.createOne(foodData.data);
+      }
+      catch {
+        resolved = null;
+      }
+      if (resolved) {
+        createdFoods.set(resolved.name.toLowerCase(), resolved);
+      }
+    }),
+    ...Array.from(missingUnitNames.values()).map(async (name) => {
+      unitData.reset();
+      unitData.data.name = name;
+      let resolved = null;
+      try {
+        resolved = await unitStore.actions.createOne(unitData.data);
+      }
+      catch {
+        resolved = null;
+      }
+      if (resolved) {
+        createdUnits.set(resolved.name.toLowerCase(), resolved);
+      }
+    }),
+  ]);
+
+  // Apply resolved foods/units back to ingredients. Any still-missing entries
+  // (create failed for some reason) are cleared so the recipe save doesn't
+  // submit an id-less food/unit — the original_text on the ingredient survives,
+  // so the line is preserved as note-only.
+  for (const ing of parsedIngs.value) {
+    const food = ing.ingredient.food;
+    if (food && !food.id && food.name) {
+      ing.ingredient.food = createdFoods.get(food.name.toLowerCase()) ?? undefined;
+    }
+    const unit = ing.ingredient.unit;
+    if (unit && !unit.id && unit.name) {
+      ing.ingredient.unit = createdUnits.get(unit.name.toLowerCase()) ?? undefined;
+    }
+  }
+
+  state.loading.bulk = false;
+  state.allReviewed = true;
 }
 
 async function addMissingUnitAsAlias() {
