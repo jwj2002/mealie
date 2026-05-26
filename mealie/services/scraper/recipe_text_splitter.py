@@ -7,8 +7,6 @@ from mealie.services.openai import OpenAINotEnabledException, OpenAIService
 from mealie.services.openai.openai import OpenAIBase
 
 MAX_RECIPES = 50
-# Minimum token length to attempt LLM fallback (~1500 tokens ≈ 6000 chars)
-LLM_FALLBACK_THRESHOLD = 6000
 
 logger = get_logger()
 
@@ -35,13 +33,15 @@ class BulkTextSplitterService:
         """
         chunks = self._split_by_headings(text)
 
-        if len(chunks) <= 1 and len(text) >= LLM_FALLBACK_THRESHOLD:
+        # If the heuristic couldn't split, always try the LLM. Users hitting the
+        # bulk-text page are explicitly telling us "split this"; gating on text
+        # length defeats the feature for short multi-recipe inputs.
+        if len(chunks) <= 1:
             try:
                 llm_chunks = await self._split_via_llm(text)
                 if llm_chunks and len(llm_chunks) > 1:
                     chunks = llm_chunks
             except OpenAINotEnabledException:
-                # AI not configured; treat whole input as single recipe
                 pass
             except Exception:
                 logger.exception("LLM split fallback failed; treating input as single chunk")
