@@ -491,22 +491,28 @@ async function createAllMissing() {
   // Firing parallel POSTs for the same name races on the unique-name constraint;
   // one wins and the other 400s, leaving an id-less food on the ingredient that
   // then fails the recipe save with "Expected 'id' to be provided for food".
-  // Group by name and fire one create per unique name.
-  const missingFoodNames = new Set<string>();
-  const missingUnitNames = new Set<string>();
+  // Dedupe by lowercase name so "Salt" and "salt" merge to a single create.
+  const missingFoodNames = new Map<string, string>();
+  const missingUnitNames = new Map<string, string>();
   for (const ing of parsedIngs.value) {
     const food = ing.ingredient.food;
-    if (food && !food.id && food.name && !createdFoods.has(food.name.toLowerCase())) {
-      missingFoodNames.add(food.name);
+    if (food && !food.id && food.name) {
+      const key = food.name.toLowerCase();
+      if (!createdFoods.has(key) && !missingFoodNames.has(key)) {
+        missingFoodNames.set(key, food.name);
+      }
     }
     const unit = ing.ingredient.unit;
-    if (unit && !unit.id && unit.name && !createdUnits.has(unit.name.toLowerCase())) {
-      missingUnitNames.add(unit.name);
+    if (unit && !unit.id && unit.name) {
+      const key = unit.name.toLowerCase();
+      if (!createdUnits.has(key) && !missingUnitNames.has(key)) {
+        missingUnitNames.set(key, unit.name);
+      }
     }
   }
 
   await Promise.all([
-    ...Array.from(missingFoodNames).map(async (name) => {
+    ...Array.from(missingFoodNames.values()).map(async (name) => {
       foodData.reset();
       foodData.data.name = name;
       let resolved = null;
@@ -520,7 +526,7 @@ async function createAllMissing() {
         createdFoods.set(resolved.name.toLowerCase(), resolved);
       }
     }),
-    ...Array.from(missingUnitNames).map(async (name) => {
+    ...Array.from(missingUnitNames.values()).map(async (name) => {
       unitData.reset();
       unitData.data.name = name;
       let resolved = null;
