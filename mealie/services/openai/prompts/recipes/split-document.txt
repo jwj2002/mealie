@@ -1,0 +1,3 @@
+Split the following document into individual recipes. Return a JSON array of strings where each string is the complete text of one recipe. Preserve all original text exactly — do not summarize, rewrite, or omit any content. If the document contains only one recipe, return a single-element array. Only split on actual recipe boundaries, not section headings or intros that are not themselves recipes.
+
+Return valid JSON only: ["recipe text 1", "recipe text 2", ...]

@@ -1,6 +1,7 @@
 import asyncio
 from collections import defaultdict
 from collections.abc import AsyncIterable
+from datetime import UTC, datetime
 from shutil import copyfileobj
 from uuid import UUID
 
@@ -33,7 +34,7 @@ from mealie.routes._base import controller
 from mealie.routes._base.routers import MealieCrudRoute, UserAPIRouter
 from mealie.schema.cookbook.cookbook import ReadCookBook
 from mealie.schema.make_dependable import make_dependable
-from mealie.schema.recipe import Recipe, ScrapeRecipe, ScrapeRecipeData
+from mealie.schema.recipe import BulkIngestText, Recipe, ScrapeRecipe, ScrapeRecipeData
 from mealie.schema.recipe.recipe import (
     CreateRecipe,
     CreateRecipeByUrlBulk,
@@ -51,6 +52,8 @@ from mealie.schema.response import PaginationBase, PaginationQuery
 from mealie.schema.response.pagination import RecipeSearchQuery
 from mealie.schema.response.responses import (
     ErrorResponse,
+    SSEBulkIngestSummary,
+    SSEBulkRecipeDone,
     SSEDataEventDone,
     SSEDataEventMessage,
     SSEDataEventStatus,
@@ -70,6 +73,7 @@ from mealie.services.recipe.recipe_data_service import (
     RecipeDataService,
 )
 from mealie.services.scraper.recipe_bulk_scraper import RecipeBulkScraperService
+from mealie.services.scraper.recipe_text_splitter import BulkTextSplitterService
 from mealie.services.scraper.scraped_extras import ScraperContext
 from mealie.services.scraper.scraper import create_from_html
 from mealie.services.scraper.scraper_strategies import (
@@ -272,6 +276,114 @@ class RecipeController(BaseRecipeController):
             )
 
         return new_recipe.slug
+
+    @router.post("/create/bulk-text/stream", response_class=EventSourceResponse)
+    async def parse_recipe_bulk_text_stream(self, req: BulkIngestText) -> AsyncIterable[ServerSentEvent]:
+        """
+        Accepts a raw text/markdown document and streams per-recipe progress via SSE
+        as each recipe is split, extracted via OpenAI, and created.
+        """
+        async for event in self._create_recipes_from_text(req):
+            yield event
+
+    async def _create_recipes_from_text(self, req: BulkIngestText) -> AsyncIterable[ServerSentEvent]:
+        queue: asyncio.Queue[ServerSentEvent | None] = asyncio.Queue()
+
+        async def on_progress(message: str) -> None:
+            await queue.put(
+                ServerSentEvent(
+                    data=SSEDataEventMessage(message=message),
+                    event=SSEDataEventStatus.PROGRESS,
+                )
+            )
+
+        async def run() -> None:
+            try:
+                splitter = BulkTextSplitterService(self.repos, self.translator)
+                await on_progress("Splitting document into recipes...")
+                chunks, truncated = await splitter.split(req.text)
+                total = len(chunks)
+                succeeded = 0
+                failed = 0
+
+                for i, chunk in enumerate(chunks):
+                    # Extract a recipe name from the first line for the progress message
+                    first_line = chunk.splitlines()[0].lstrip("#").strip() if chunk else f"Recipe {i + 1}"
+                    recipe_name = first_line or f"Recipe {i + 1}"
+                    await on_progress(f"Creating recipe {i + 1}/{total}: {recipe_name}")
+
+                    try:
+                        # Wrap chunk in <pre> so format_html_to_text extracts it cleanly
+                        html_chunk = f"<pre>{chunk}</pre>"
+                        recipe, _extras = await create_from_html(
+                            url="",
+                            repos=self.repos,
+                            translator=self.translator,
+                            html=html_chunk,
+                        )
+
+                        # Populate ingest metadata before persisting
+                        recipe.extras = {
+                            "ingest_source": "paste",
+                            "ingest_at": datetime.now(UTC).isoformat(),
+                            "ingest_chunk_index": str(i),
+                        }
+
+                        new_recipe = self.service.create_one(recipe)
+                        slug = new_recipe.slug if new_recipe else ""
+                        succeeded += 1
+
+                        await queue.put(
+                            ServerSentEvent(
+                                data=SSEBulkRecipeDone(
+                                    chunk_index=i,
+                                    total_chunks=total,
+                                    recipe_slug=slug,
+                                    status="created",
+                                ),
+                                event=SSEDataEventStatus.RECIPE_DONE,
+                            )
+                        )
+                    except Exception as e:
+                        self.logger.exception(f"Error creating recipe {i + 1}/{total}: {e.__class__.__name__}")
+                        failed += 1
+                        await queue.put(
+                            ServerSentEvent(
+                                data=SSEBulkRecipeDone(
+                                    chunk_index=i,
+                                    total_chunks=total,
+                                    recipe_slug="",
+                                    status="failed",
+                                ),
+                                event=SSEDataEventStatus.RECIPE_DONE,
+                            )
+                        )
+
+                await queue.put(
+                    ServerSentEvent(
+                        data=SSEBulkIngestSummary(
+                            total=total,
+                            succeeded=succeeded,
+                            failed=failed,
+                            truncated=truncated,
+                        ),
+                        event=SSEDataEventStatus.DONE,
+                    )
+                )
+            except Exception as e:
+                self.logger.exception("Unrecoverable error in bulk text ingest")
+                await queue.put(
+                    ServerSentEvent(
+                        data=SSEDataEventMessage(message=e.__class__.__name__),
+                        event=SSEDataEventStatus.ERROR,
+                    )
+                )
+            finally:
+                await queue.put(None)
+
+        asyncio.create_task(run())
+        while (event := await queue.get()) is not None:
+            yield event
 
     @router.post("/create/url/bulk", status_code=202)
     def parse_recipe_url_bulk(self, bulk: CreateRecipeByUrlBulk, bg_tasks: BackgroundTasks):

@@ -24,6 +24,7 @@ from .recipe_bulk_actions import (
     ExportRecipes,
     ExportTypes,
 )
+from .recipe_bulk_text import BulkIngestText
 from .recipe_category import (
     CategoryBase,
     CategoryIn,
@@ -182,4 +183,5 @@ __all__ = [
     "ScrapeRecipeBase",
     "ScrapeRecipeData",
     "ScrapeRecipeTest",
+    "BulkIngestText",
 ]
