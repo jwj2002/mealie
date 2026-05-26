@@ -12,6 +12,11 @@ import type {
   ReadInviteToken,
   HouseholdSummary,
   HouseholdRecipeSummary,
+  HouseholdSearchSiteCreate,
+  HouseholdSearchSiteOut,
+  HouseholdSearchSiteUpdate,
+  HuntSearchRequest,
+  HuntSearchResponse,
 } from "~/lib/api/types/household";
 
 const prefix = "/api";
@@ -25,6 +30,11 @@ const routes = {
   preferences: `${prefix}/households/preferences`,
   statistics: `${prefix}/households/statistics`,
   invitation: `${prefix}/households/invitations`,
+
+  searchSites: `${prefix}/households/search-sites`,
+  searchSitesId: (id: string) => `${prefix}/households/search-sites/${id}`,
+  searchSitesRestoreDefaults: `${prefix}/households/search-sites/restore-defaults`,
+  huntSearch: `${prefix}/recipes/hunt/search`,
 
   householdsId: (id: string | number) => `${prefix}/groups/households/${id}`,
   householdsSelfRecipesSlug: (recipeSlug: string) => `${prefix}/households/self/recipes/${recipeSlug}`,
@@ -63,5 +73,29 @@ export class HouseholdAPI extends BaseCRUDAPIReadOnly<HouseholdSummary> {
 
   async statistics() {
     return await this.requests.get<HouseholdStatistics>(routes.statistics);
+  }
+
+  async getSearchSites() {
+    return await this.requests.get<HouseholdSearchSiteOut[]>(routes.searchSites);
+  }
+
+  async createSearchSite(payload: HouseholdSearchSiteCreate) {
+    return await this.requests.post<HouseholdSearchSiteOut>(routes.searchSites, payload);
+  }
+
+  async updateSearchSite(id: string, payload: HouseholdSearchSiteUpdate) {
+    return await this.requests.put<HouseholdSearchSiteOut, HouseholdSearchSiteUpdate>(routes.searchSitesId(id), payload);
+  }
+
+  async deleteSearchSite(id: string) {
+    return await this.requests.delete(routes.searchSitesId(id));
+  }
+
+  async restoreDefaultSearchSites() {
+    return await this.requests.post<HouseholdSearchSiteOut[]>(routes.searchSitesRestoreDefaults, {});
+  }
+
+  async huntSearch(payload: HuntSearchRequest) {
+    return await this.requests.post<HuntSearchResponse>(routes.huntSearch, payload);
   }
 }

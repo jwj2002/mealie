@@ -789,3 +789,36 @@ export interface RecipeIngredientBase {
   note?: string | null;
   display?: string;
 }
+export interface HouseholdSearchSiteCreate {
+  name: string;
+  domain: string;
+  enabled?: boolean;
+  isBlocked?: boolean;
+  isDefault?: boolean;
+  position?: number;
+}
+export interface HouseholdSearchSiteUpdate {
+  enabled?: boolean | null;
+  isBlocked?: boolean | null;
+}
+export interface HouseholdSearchSiteOut extends HouseholdSearchSiteCreate {
+  id: string;
+  groupId: string;
+  householdId: string;
+}
+export interface HuntSearchRequest {
+  query: string;
+  count?: number;
+  offset?: number;
+}
+export interface SearchSiteResult {
+  title: string;
+  url: string;
+  description?: string | null;
+  isBlockedSite?: boolean;
+}
+export interface HuntSearchResponse {
+  query: string;
+  results: SearchSiteResult[];
+  truncatedToMaxSites?: boolean;
+}
