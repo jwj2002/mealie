@@ -44,6 +44,18 @@ export interface SSEDataEventBase {}
 export interface SSEDataEventDone {
   slug: string;
 }
+export interface SSEBulkRecipeDone {
+  chunk_index: number;
+  total_chunks: number;
+  recipe_slug: string; // empty string "" when status === "failed"
+  status: "created" | "failed";
+}
+export interface SSEBulkIngestSummary {
+  total: number;
+  succeeded: number;
+  failed: number;
+  truncated: boolean;
+}
 export interface SSEDataEventMessage {
   message: string;
 }
