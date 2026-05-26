@@ -43,6 +43,7 @@ def get_app_info(session: Session = Depends(generate_session)):
         oidc_provider_name=settings.OIDC_PROVIDER_NAME,
         allow_password_login=settings.ALLOW_PASSWORD_LOGIN,
         token_time=settings.TOKEN_TIME,
+        brave_search_enabled=bool(settings.BRAVE_SEARCH_API_KEY),
     )
 
 

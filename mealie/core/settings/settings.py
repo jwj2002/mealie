@@ -395,6 +395,12 @@ class AppSettings(AppLoggingSettings):
     """
 
     # ===============================================
+    # Brave Search Configuration
+
+    BRAVE_SEARCH_API_KEY: str | None = None
+    """API key for Brave Search. If not set, Recipe Hunt feature will be disabled."""
+
+    # ===============================================
     # Web Concurrency
 
     WORKER_PER_CORE: int = 1
