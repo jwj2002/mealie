@@ -18,7 +18,7 @@ import type {
   RecipeTimelineEventOut,
   RecipeTimelineEventUpdate,
 } from "~/lib/api/types/recipe";
-import type { SSEDataEventDone, SSEDataEventMessage } from "~/lib/api/types/response";
+import type { SSEBulkIngestSummary, SSEBulkRecipeDone, SSEDataEventDone, SSEDataEventMessage } from "~/lib/api/types/response";
 import type { ApiRequestInstance, PaginationData, RequestResponse } from "~/lib/api/types/non-generated";
 import { SSEDataEventStatus } from "~/lib/api/types/non-generated";
 
@@ -40,6 +40,7 @@ const routes = {
   recipesTestScrapeUrl: `${prefix}/recipes/test-scrape-url`,
   recipesCreateUrl: `${prefix}/recipes/create/url/stream`,
   recipesCreateUrlBulk: `${prefix}/recipes/create/url/bulk`,
+  recipesCreateBulkTextStream: `${prefix}/recipes/create/bulk-text/stream`,
   recipesCreateFromZip: `${prefix}/recipes/create/zip`,
   recipesCreateFromImage: `${prefix}/recipes/create/image`,
   recipesCreateFromHtmlOrJson: `${prefix}/recipes/create/html-or-json/stream`,
@@ -213,6 +214,59 @@ export class RecipeAPI extends BaseCRUDAPI<CreateRecipe, Recipe, Recipe> {
 
   async createManyByUrl(payload: CreateRecipeByUrlBulk) {
     return await this.requests.post<string>(routes.recipesCreateUrlBulk, payload);
+  }
+
+  streamBulkTextCreate(
+    text: string,
+    onRecipeDone?: (event: SSEBulkRecipeDone) => void,
+    onProgress?: (message: string) => void,
+  ): Promise<SSEBulkIngestSummary> {
+    return new Promise((resolve, reject) => {
+      const { token } = useMealieAuth();
+
+      const sse = new SSE(routes.recipesCreateBulkTextStream, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token.value ? { Authorization: `Bearer ${token.value}` } : {}),
+        },
+        payload: JSON.stringify({ text }),
+        withCredentials: true,
+        autoReconnect: false,
+      });
+
+      if (onProgress) {
+        sse.addEventListener(SSEDataEventStatus.Progress, (e: SSEvent) => {
+          const { message } = JSON.parse(e.data) as SSEDataEventMessage;
+          onProgress(message);
+        });
+      }
+
+      if (onRecipeDone) {
+        sse.addEventListener(SSEDataEventStatus.RecipeDone, (e: SSEvent) => {
+          const event = JSON.parse(e.data) as SSEBulkRecipeDone;
+          onRecipeDone(event);
+        });
+      }
+
+      sse.addEventListener(SSEDataEventStatus.Done, (e: SSEvent) => {
+        const summary = JSON.parse(e.data) as SSEBulkIngestSummary;
+        sse.close();
+        resolve(summary);
+      });
+
+      sse.addEventListener(SSEDataEventStatus.Error, (e: SSEvent) => {
+        try {
+          const { message } = JSON.parse(e.data) as SSEDataEventMessage;
+          sse.close();
+          reject(new Error(message));
+        }
+        catch {
+          // Not a backend error payload; ignore
+        }
+      });
+
+      sse.stream();
+    });
   }
 
   async createOneFromImages(fileObjects: (Blob | File)[], translateLanguage: string | null = null) {

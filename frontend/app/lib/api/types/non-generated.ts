@@ -45,6 +45,7 @@ export enum SSEDataEventStatus {
   Progress = "progress",
   Done = "done",
   Error = "error",
+  RecipeDone = "recipe_done",
 }
 
 export type PlaceholderKeyword = "$NOW";
