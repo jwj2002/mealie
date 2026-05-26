@@ -108,6 +108,15 @@
               >
                 {{ i18n.t("recipe.parser.add-text-as-alias-for-item", { text: currentMissingFood, item: currentIng.ingredient.food.name }) }}
               </BaseButton>
+              <BaseButton
+                v-if="missingCount > 0"
+                color="info"
+                size="small"
+                :loading="state.loading.bulk"
+                @click="createAllMissing"
+              >
+                {{ i18n.t("recipe.parser.create-all-missing", { count: missingCount }) }}
+              </BaseButton>
             </v-card-actions>
           </v-card-text>
         </v-card>
@@ -259,12 +268,21 @@ const currentMissingFood = ref("");
 const currentIngHasError = computed(() => currentMissingUnit.value || currentMissingFood.value);
 const currentIngShouldDelete = ref(false);
 
+const missingCount = computed(() => {
+  if (state.allReviewed) return 0;
+  return parsedIngs.value.filter(ing =>
+    (ing.ingredient.food && !ing.ingredient.food.id)
+    || (ing.ingredient.unit && !ing.ingredient.unit.id),
+  ).length;
+});
+
 const state = reactive({
   currentParsedIndex: -1,
   allReviewed: false,
   loading: {
     parser: false,
     save: false,
+    bulk: false,
   },
 });
 
@@ -462,6 +480,60 @@ async function createMissingFood() {
   currentIng.value!.ingredient.food = newFood;
   createdFoods.set(newFood.name.toLowerCase(), newFood);
   currentMissingFood.value = "";
+}
+
+async function createAllMissing() {
+  if (state.loading.bulk || missingCount.value === 0) return;
+  state.loading.bulk = true;
+
+  await Promise.all(
+    parsedIngs.value.map(async (ing) => {
+      // --- food ---
+      const food = ing.ingredient.food;
+      if (food && !food.id && food.name) {
+        const key = food.name.toLowerCase();
+        let resolved = createdFoods.get(key) ?? null;
+        if (!resolved) {
+          foodData.reset();
+          foodData.data.name = food.name;
+          try {
+            resolved = await foodStore.actions.createOne(foodData.data);
+          }
+          catch {
+            resolved = null;
+          }
+        }
+        if (resolved) {
+          ing.ingredient.food = resolved;
+          createdFoods.set(resolved.name.toLowerCase(), resolved);
+        }
+      }
+
+      // --- unit ---
+      const unit = ing.ingredient.unit;
+      if (unit && !unit.id && unit.name) {
+        const key = unit.name.toLowerCase();
+        let resolved = createdUnits.get(key) ?? null;
+        if (!resolved) {
+          unitData.reset();
+          unitData.data.name = unit.name;
+          try {
+            resolved = await unitStore.actions.createOne(unitData.data);
+          }
+          catch {
+            resolved = null;
+          }
+        }
+        if (resolved) {
+          ing.ingredient.unit = resolved;
+          createdUnits.set(resolved.name.toLowerCase(), resolved);
+        }
+      }
+    }),
+  );
+
+  state.loading.bulk = false;
+  state.allReviewed = true;
 }
 
 async function addMissingUnitAsAlias() {
