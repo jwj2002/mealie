@@ -6,6 +6,7 @@ from .invite_tokens import GroupInviteToken
 from .mealplan import GroupMealPlan, GroupMealPlanRules
 from .preferences import HouseholdPreferencesModel
 from .recipe_action import GroupRecipeAction
+from .search_sites import HouseholdSearchSiteModel
 from .shopping_list import (
     ShoppingList,
     ShoppingListExtras,
@@ -25,6 +26,7 @@ __all__ = [
     "GroupMealPlanRules",
     "Household",
     "HouseholdPreferencesModel",
+    "HouseholdSearchSiteModel",
     "HouseholdToRecipe",
     "GroupRecipeAction",
     "ShoppingList",

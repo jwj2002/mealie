@@ -53,7 +53,7 @@ definePageMeta({
 
 const i18n = useI18n();
 const auth = useMealieAuth();
-const { $globals } = useNuxtApp();
+const { $globals, $appInfo } = useNuxtApp();
 const { group } = useGroupSelf();
 
 useSeoMeta({
@@ -75,6 +75,12 @@ const subpages = computed<MenuItem[]>(() => [
     icon: $globals.icons.codeTags,
     text: i18n.t("recipe.import-from-html-or-json"),
     value: "html",
+  },
+  {
+    icon: $globals.icons.search,
+    text: i18n.t("recipe.hunt-search"),
+    value: "hunt",
+    hide: !$appInfo.braveSearchEnabled,
   },
   {
     icon: $globals.icons.codeTags,

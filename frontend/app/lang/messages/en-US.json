@@ -758,7 +758,15 @@
     "cover-image": "Cover image",
     "include-linked-recipes": "Include Linked Recipes",
     "include-linked-recipe-ingredients": "Include Linked Recipe Ingredients",
-    "toggle-recipe": "Toggle Recipe"
+    "toggle-recipe": "Toggle Recipe",
+    "hunt-search": "Recipe Hunt",
+    "hunt-search-description": "Search trusted recipe sites via Brave Search",
+    "hunt-search-placeholder": "Search for a recipe...",
+    "hunt-import": "Import Recipe",
+    "hunt-blocked-site-warning": "This site is blocked by your household",
+    "hunt-no-results": "No results found",
+    "hunt-load-more": "Load more results",
+    "hunt-truncated-warning": "Showing results from up to 10 sites only"
   },
   "recipe-finder": {
     "recipe-finder": "Recipe Finder",
@@ -1417,7 +1425,16 @@
     "run-test": "Run Test",
     "test-results": "Test Results",
     "group-delete-note": "Groups with users or households cannot be deleted",
-    "household-delete-note": "Households with users cannot be deleted"
+    "household-delete-note": "Households with users cannot be deleted",
+    "search-sites-title": "Recipe Search Sites",
+    "search-sites-description": "Manage which external sites are searched when using Recipe Hunt",
+    "search-sites-add": "Add Site",
+    "search-sites-name": "Site Name",
+    "search-sites-domain": "Domain",
+    "search-sites-enabled": "Enabled",
+    "search-sites-blocked": "Blocked",
+    "search-sites-restore-defaults": "Restore Defaults",
+    "search-sites-restore-confirm": "This will delete all custom sites and restore the default list. Continue?"
   },
   "profile": {
     "welcome-user": "👋 Welcome, {0}!",

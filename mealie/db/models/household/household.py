@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         GroupRecipeAction,
         GroupWebhooksModel,
         HouseholdPreferencesModel,
+        HouseholdSearchSiteModel,
     )
 
 
@@ -58,6 +59,9 @@ class Household(SqlAlchemyBase, BaseMixins):
         "single_parent": True,
     }
 
+    search_sites: Mapped[list["HouseholdSearchSiteModel"]] = orm.relationship(
+        "HouseholdSearchSiteModel", back_populates="household", cascade="all, delete-orphan"
+    )
     recipe_actions: Mapped[list["GroupRecipeAction"]] = orm.relationship("GroupRecipeAction", **COMMON_ARGS)
     cookbooks: Mapped[list["CookBook"]] = orm.relationship("CookBook", **COMMON_ARGS)
 

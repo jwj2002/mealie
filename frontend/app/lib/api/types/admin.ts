@@ -48,6 +48,7 @@ export interface AppInfo {
   oidcRedirect: boolean;
   oidcProviderName: string;
   tokenTime: number;
+  braveSearchEnabled: boolean;
 }
 export interface AppStartupInfo {
   isFirstLogin: boolean;
