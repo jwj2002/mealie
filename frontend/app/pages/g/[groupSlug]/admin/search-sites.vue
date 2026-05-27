@@ -129,6 +129,7 @@
 </template>
 
 <script setup lang="ts">
+import { useUserApi } from "~/composables/api";
 import type { HouseholdSearchSiteOut } from "~/lib/api/types/household";
 
 definePageMeta({

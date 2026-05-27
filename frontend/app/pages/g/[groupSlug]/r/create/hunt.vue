@@ -80,7 +80,9 @@
                 variant="tonal"
                 color="primary"
                 size="small"
-                :href="`/g/${groupSlug}/r/create/url?url=${encodeURIComponent(result.url)}`"
+                :loading="importingUrl === result.url"
+                :disabled="importingUrl !== null && importingUrl !== result.url"
+                @click="importOne(result.url)"
               >
                 {{ $t("recipe.hunt-import") }}
               </v-btn>
@@ -113,6 +115,8 @@
 </template>
 
 <script setup lang="ts">
+import { useUserApi } from "~/composables/api";
+import { useNewRecipeOptions } from "~/composables/use-new-recipe-options";
 import type { HuntSearchResponse } from "~/lib/api/types/household";
 
 definePageMeta({
@@ -132,6 +136,28 @@ const loadingMore = ref(false);
 const error = ref<string | null>(null);
 const offset = ref(0);
 const pageSize = 10;
+const importingUrl = ref<string | null>(null);
+const { navigateToRecipe } = useNewRecipeOptions();
+
+async function importOne(url: string) {
+  if (importingUrl.value) return;
+  importingUrl.value = url;
+  try {
+    const { response } = await api.recipes.createOneByUrl(url, false, false);
+    if (response?.status === 201 && response.data) {
+      navigateToRecipe(response.data, groupSlug.value, `/g/${groupSlug.value}/r/create/hunt`);
+    }
+    else {
+      error.value = i18n.t("generic.server-error");
+    }
+  }
+  catch {
+    error.value = i18n.t("generic.server-error");
+  }
+  finally {
+    importingUrl.value = null;
+  }
+}
 
 useSeoMeta({
   title: i18n.t("recipe.hunt-search"),
